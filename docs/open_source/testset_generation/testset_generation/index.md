@@ -215,7 +215,7 @@ class MyCustomLLM(litellm.CustomLLM):
 
         return litellm.ModelResponse(**response.json())
     
-    # Custom embeddings
+    # Custom embeddings (available since LiteLLM v1.71.1)
     def embedding(
         self,
         model: str,

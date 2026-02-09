@@ -24,7 +24,7 @@ def _get_response_format(format):
         return None
 
     if format in ("json", "json_object"):
-        return {"type": "json_object"}
+        return {"type": format}
 
     warning(f"Unsupported format '{format}', ignoring.")
     return None
