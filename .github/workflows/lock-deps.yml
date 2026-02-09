@@ -59,7 +59,7 @@ jobs:
           cache: false
 
       - name: Install dependencies
-        run: rm -rf pdm.lock && pdm lock -G :all
+        run: pdm config use_uv true && rm -rf pdm.lock && pdm lock -G :all
 
       - name: Configure git
         run: |
