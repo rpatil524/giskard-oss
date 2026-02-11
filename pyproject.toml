@@ -93,6 +93,7 @@ test = [
     "pytest-xdist>=3.3.1",
     "pytest-mock",
     "ragas>=0.1.5, <=0.2.7", # ragas 0.2.8 introduces abstract classes
+    "setuptools<81", # used for pkg_resources (mlflow)
     "shap<0.45", # fixing this to avoid changed on insights
 ]
 doc = [
@@ -167,7 +168,6 @@ dependencies = [
     "chardet",                  # text metadata
     "jinja2>=3",                # scan template
     "requests-toolbelt>=0.9.1",
-    "setuptools<70",               # used for pkg_resources
     "typing_extensions",        # used in registry/decorators, for python <3.10
     "pyyaml",
     "packaging",                # used in settings
