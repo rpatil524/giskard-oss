@@ -570,7 +570,7 @@ class SuiteResult(BaseResult, frozen=True):
                             f"\t{line}" for line in c.__rich_console__(console, options)
                         )
             if len(failures_and_errors) > n_loggable_failures:
-                yield f"\t... and {len(failures_and_errors) - n_loggable_failures} more"
+                yield f"  ... and {len(failures_and_errors) - n_loggable_failures} more"
 
         yield Rule(style="bold blue")
 
