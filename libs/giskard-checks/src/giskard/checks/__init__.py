@@ -41,6 +41,7 @@ from .core import (
 )
 from .generators.user import UserSimulator
 from .judges import (
+    AnswerRelevance,
     BaseLLMCheck,
     Conformity,
     Groundedness,
@@ -88,6 +89,7 @@ __all__ = [
     "Interaction",
     "InteractionSpec",
     # Builtin and LLM-based checks
+    "AnswerRelevance",
     "AllOf",
     "AnyOf",
     "Not",
