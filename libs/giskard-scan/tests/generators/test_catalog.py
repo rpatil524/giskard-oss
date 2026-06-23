@@ -11,6 +11,23 @@ from giskard.scan.utils.knowledge_base import KnowledgeBase
 from giskard.scan.vulnerability import vulnerability_suite_generator_registry
 
 
+class _ModeTracker(ScenarioGenerator):
+    """Records the last target_mode seen by each named instance."""
+
+    name: str
+    seen_mode: str = ""
+
+    async def generate_scenario(
+        self,
+        context: ScenarioContext,
+        max_scenarios: int | None = None,
+        rng=None,
+        target_mode: str = "multiturn",
+    ):
+        self.seen_mode = target_mode
+        return []
+
+
 class _StubGenerator(ScenarioGenerator):
     """Returns a fixed number of scenarios for testing."""
 
@@ -22,6 +39,7 @@ class _StubGenerator(ScenarioGenerator):
         context: ScenarioContext,
         max_scenarios: int | None = None,
         rng: np.random.Generator | None = None,
+        target_mode: str = "multiturn",
     ) -> list[Scenario[Any, Any, Trace[Any, Any]]]:
         n = max_scenarios if max_scenarios is not None else self.scenario_count
         return [Scenario(name=f"stub-{self.name}-{i}") for i in range(n)]
@@ -91,6 +109,7 @@ async def test_generate_suite_max_scenarios_distributed_across_generators():
             context: ScenarioContext,
             max_scenarios: int | None = None,
             rng: np.random.Generator | None = None,
+            target_mode: str = "multiturn",
         ) -> list[Scenario[Any, Any, Trace[Any, Any]]]:
             received[self.name] = max_scenarios
             n = max_scenarios if max_scenarios is not None else 0
@@ -120,6 +139,7 @@ async def test_generate_suite_no_max_passes_none_to_generators():
             context: ScenarioContext,
             max_scenarios: int | None = None,
             rng: np.random.Generator | None = None,
+            target_mode: str = "multiturn",
         ) -> list[Scenario[Any, Any, Trace[Any, Any]]]:
             received[self.name] = max_scenarios
             return []
@@ -141,6 +161,7 @@ async def test_generate_suite_forwards_knowledge_base_to_generators():
             context: ScenarioContext,
             max_scenarios: int | None = None,
             rng: np.random.Generator | None = None,
+            target_mode: str = "multiturn",
         ) -> list[Scenario[Any, Any, Trace[Any, Any]]]:
             received.append(context.knowledge_base)
             return []
@@ -169,6 +190,7 @@ async def test_generate_suite_passes_context_to_all_generators():
             context: ScenarioContext,
             max_scenarios: int | None = None,
             rng: np.random.Generator | None = None,
+            target_mode: str = "multiturn",
         ) -> list[Scenario[Any, Any, Trace[Any, Any]]]:
             seen.append(context.description)
             return []
@@ -222,6 +244,7 @@ async def test_generate_suite_non_kb_generator_ignores_knowledge_base():
             context: ScenarioContext,
             max_scenarios: int | None = None,
             rng: np.random.Generator | None = None,
+            target_mode: str = "multiturn",
         ) -> list[Scenario[Any, Any, Trace[Any, Any]]]:
             # Deliberately never reads context.knowledge_base.
             return [Scenario(name="kb-ignored")]
@@ -248,6 +271,7 @@ async def test_generate_suite_reproducibility():
             context: ScenarioContext,
             max_scenarios: int | None = None,
             rng: np.random.Generator | None = None,
+            target_mode: str = "multiturn",
         ) -> list[Scenario[Any, Any, Trace[Any, Any]]]:
             return [
                 Scenario(name=f"{self.name}-{i}") for i in range(max_scenarios or 0)
@@ -273,6 +297,56 @@ async def test_generate_suite_reproducibility():
     assert [s.name for s in suite_a.scenarios] == [s.name for s in suite_b.scenarios]
 
 
+async def test_generate_suite_passes_target_mode_to_generators():
+    """target_mode is forwarded to each generator's generate_scenario."""
+    tracker_a = _ModeTracker(name="a")
+    tracker_b = _ModeTracker(name="b")
+
+    await generate_suite(
+        "My chatbot",
+        languages=["en"],
+        generators=[tracker_a, tracker_b],
+        target_mode="singleturn",
+    )
+    assert tracker_a.seen_mode == "singleturn"
+    assert tracker_b.seen_mode == "singleturn"
+
+
+async def test_generate_suite_target_mode_defaults_to_multiturn():
+    tracker = _ModeTracker(name="z")
+
+    await generate_suite(
+        "My chatbot",
+        languages=["en"],
+        generators=[tracker],
+    )
+    assert tracker.seen_mode == "multiturn"
+
+
+async def test_generate_suite_singleturn_passes_scenarios_through():
+    """In singleturn mode, scenarios from generators are passed through unchanged."""
+    single = Scenario(name="ok").interact("hello", outputs=lambda inputs: "world")
+
+    class _SingleGen(ScenarioGenerator):
+        async def generate_scenario(
+            self,
+            context: ScenarioContext,
+            max_scenarios=None,
+            rng=None,
+            target_mode="multiturn",
+        ):
+            return [single]
+
+    suite = await generate_suite(
+        "My chatbot",
+        languages=["en"],
+        generators=[_SingleGen()],
+        target_mode="singleturn",
+    )
+    assert len(suite.scenarios) == 1
+    assert suite.scenarios[0].name == "ok"
+
+
 async def test_generate_suite_unbudgeted_reproducibility():
     """Without max_scenarios, each generator gets an independent child rng so
     concurrent draws stay reproducible across runs with the same seed."""
@@ -289,6 +363,7 @@ async def test_generate_suite_unbudgeted_reproducibility():
             context: ScenarioContext,
             max_scenarios: int | None = None,
             rng: np.random.Generator | None = None,
+            target_mode: str = "multiturn",
         ) -> list[Scenario[Any, Any, Trace[Any, Any]]]:
             assert rng is not None
             await asyncio.sleep(self.yield_seconds)

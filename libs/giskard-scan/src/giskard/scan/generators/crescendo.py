@@ -9,7 +9,7 @@ from giskard.checks.generators import LLMGenerator
 from giskard.checks.judges import LLMJudge
 from pydantic import Field
 
-from .base import ScenarioContext, ScenarioGenerator
+from .base import ScenarioContext, ScenarioGenerator, TargetMode
 
 DEFAULT_CRESCENDO_MAX_TURNS = 10
 """Default number of attacker turns."""
@@ -48,6 +48,7 @@ class CrescendoAttackScenarioGenerator(ScenarioGenerator):
         context: ScenarioContext,
         max_scenarios: int | None = None,
         rng: np.random.Generator | None = None,
+        target_mode: TargetMode = "multiturn",
     ) -> list[Scenario[Any, Any, Trace[Any, Any]]]:
         """Generate Crescendo attack scenarios for the described agent.
 
@@ -60,12 +61,16 @@ class CrescendoAttackScenarioGenerator(ScenarioGenerator):
             includes all built-in objectives.
         rng : numpy.random.Generator, optional
             Random generator used for reproducible objective sampling.
+        target_mode : Literal["singleturn", "multiturn"]
+            Mode of interaction with the target. Crescendo only supports multiturn.
 
         Returns
         -------
         list[Scenario]
             One multi-turn Crescendo scenario per selected objective.
         """
+        if self._skip_for_singleturn(target_mode):
+            return []
         assignments = self._select_objectives(max_scenarios, context.languages, rng)
         return [
             self._build_scenario(

@@ -10,7 +10,7 @@ from giskard.checks.generators import LLMGenerator
 from pydantic import Field
 
 from ..utils.knowledge_base import Document
-from .base import ScenarioContext, ScenarioGenerator
+from .base import ScenarioContext, ScenarioGenerator, TargetMode
 
 DEFAULT_KNOWLEDGE_BASE_SCENARIOS = 5
 DEFAULT_KNOWLEDGE_BASE_CONTEXT_DOCUMENTS = 4
@@ -38,6 +38,7 @@ class KnowledgeBaseScenarioGenerator(ScenarioGenerator):
         context: ScenarioContext,
         max_scenarios: int | None = None,
         rng: np.random.Generator | None = None,
+        target_mode: TargetMode = "multiturn",
     ) -> list[Scenario[Any, Any, Trace[Any, Any]]]:
         """Generate scenarios from nearest-neighbor knowledge base contexts.
 
@@ -47,6 +48,10 @@ class KnowledgeBaseScenarioGenerator(ScenarioGenerator):
             max_scenarios: Maximum number of scenarios to generate. ``None``
                 uses :data:`DEFAULT_KNOWLEDGE_BASE_SCENARIOS`.
             rng: Random generator used for reproducible seed document sampling.
+            target_mode: Desired conversation mode. ``"singleturn"`` caps each
+                scenario's user simulator to a single grounded question;
+                ``"multiturn"`` (default) allows follow-up turns up to
+                ``max_turns``.
 
         Returns:
             Generated scenarios, or an empty list when the context carries no
@@ -61,6 +66,8 @@ class KnowledgeBaseScenarioGenerator(ScenarioGenerator):
         )
         if scenario_count <= 0:
             return []
+
+        effective_max_turns = self._effective_max_turns(self.max_turns, target_mode)
 
         rng = rng or np.random.default_rng()
         seed_indices = self._sample_seed_indices(
@@ -81,6 +88,7 @@ class KnowledgeBaseScenarioGenerator(ScenarioGenerator):
                     language=language,
                     seed_index=int(seed_index),
                     context_documents=context_documents,
+                    max_turns=effective_max_turns,
                 )
             )
 
@@ -124,6 +132,7 @@ class KnowledgeBaseScenarioGenerator(ScenarioGenerator):
         language: str,
         seed_index: int,
         context_documents: list[Document],
+        max_turns: int,
     ) -> Scenario[Any, Any, Trace[Any, Any]]:
         context = [document.content for document in context_documents]
         return (
@@ -131,7 +140,7 @@ class KnowledgeBaseScenarioGenerator(ScenarioGenerator):
             .interact(
                 LLMGenerator(
                     prompt_path="giskard.scan::scenarios/knowledge_base_question.j2",
-                    max_steps=self.max_turns,
+                    max_steps=max_turns,
                 ),
                 metadata={"context": context},
             )

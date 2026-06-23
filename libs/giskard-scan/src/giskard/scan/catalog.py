@@ -7,7 +7,7 @@ from giskard.checks.core.interaction import Trace
 from giskard.checks.core.scenario import Scenario
 from giskard.checks.scenarios.suite import Suite
 
-from .generators.base import ScenarioContext, ScenarioGenerator
+from .generators.base import ScenarioContext, ScenarioGenerator, TargetMode
 from .registry import _normalize_generator
 from .utils.knowledge_base import KnowledgeBase, normalize_knowledge_base
 
@@ -17,6 +17,7 @@ async def _generate_scenarios(
     generators: list[ScenarioGenerator],
     max_scenarios: int | None = None,
     seed: int = 42,
+    target_mode: TargetMode = "multiturn",
 ) -> list[Scenario[Any, Any, Trace[Any, Any]]]:
     rng = np.random.default_rng(seed)
 
@@ -39,7 +40,12 @@ async def _generate_scenarios(
         for generator, n, child_rng in zip(generators, counts, child_rngs):
             tasks.append(
                 task_group.create_task(
-                    generator.generate_scenario(context, max_scenarios=n, rng=child_rng)
+                    generator.generate_scenario(
+                        context,
+                        max_scenarios=n,
+                        rng=child_rng,
+                        target_mode=target_mode,
+                    )
                 )
             )
 
@@ -52,6 +58,7 @@ async def generate_suite(
     generators: Sequence[ScenarioGenerator | type[ScenarioGenerator]],
     max_scenarios: int | None = None,
     seed: int = 42,
+    target_mode: TargetMode = "multiturn",
     knowledge_base: KnowledgeBase | list[str] | None = None,
 ) -> Suite[Any, Any]:
     """Generate a test suite by running the supplied generators.
@@ -66,7 +73,12 @@ async def generate_suite(
         generators: Sequence of generator instances or classes to use.
         max_scenarios: Total upper bound on scenarios across all generators.
             None lets each generator apply its own default.
-        seed: Integer seed for the top-level RNG, ensuring reproducibility.
+        seed: Integer seed for the top-level RNG, ensuring reproducibility
+            across runs with the same arguments.
+        target_mode: Whether the agent under test supports single-turn or
+            multi-turn conversations. ``"singleturn"`` skips generators that
+            are multi-turn by design and caps turn budgets to 1 on others.
+            Defaults to ``"multiturn"``.
         knowledge_base: Optional documents forwarded via the context to
             generators that use knowledge-base context. Raw strings are
             normalized to a :class:`KnowledgeBase`.
@@ -85,5 +97,7 @@ async def generate_suite(
         knowledge_base=normalize_knowledge_base(knowledge_base),
     )
     resolved = [_normalize_generator(g) for g in generators]
-    scenarios = await _generate_scenarios(context, resolved, max_scenarios, seed)
+    scenarios = await _generate_scenarios(
+        context, resolved, max_scenarios, seed, target_mode=target_mode
+    )
     return Suite(name="Scenarios", scenarios=scenarios)
